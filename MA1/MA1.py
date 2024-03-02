@@ -138,3 +138,38 @@ plt.ylabel('Expected Return')
 plt.grid(True)
 plt.show()
 
+
+#%% Problem 5
+
+# Compute the inverse of the variance-covariance matrix
+Sigma_inv = np.linalg.inv(Sigma)
+
+# Compute the tangency portfolio weights
+omega_tgc = np.dot(Sigma_inv, mu) / np.dot(np.ones(len(mu)), np.dot(Sigma_inv, mu))
+
+# Compute the expected return and volatility of the tangency portfolio
+expected_return_tgc = np.dot(omega_tgc, mu)
+volatility_tgc = np.sqrt(np.dot(omega_tgc.T, np.dot(Sigma, omega_tgc)))
+
+# Compute the Sharpe ratio of the tangency portfolio
+sharpe_ratio_tgc = expected_return_tgc / volatility_tgc
+
+# Plotting the efficient frontier with c's as labels for each datapoint
+plt.figure(figsize=(12, 8))
+for i, txt in enumerate(efficient_frontier_df['c']):
+    plt.scatter(volatilities[i], expected_returns[i], c='blue', marker='o')
+    plt.text(volatilities[i], expected_returns[i], f'{txt:.1f}', fontsize=9)
+
+# Plotting the tangency portfolio on the efficient frontier
+plt.scatter(volatility_tgc, expected_return_tgc, c='red', marker='*', s=150, label='Tangency Portfolio')
+plt.legend()
+
+plt.title('Efficient Frontier with Tangency Portfolio')
+plt.xlabel('Volatility')
+plt.ylabel('Expected Return')
+plt.grid(True)
+plt.show()
+
+# Output for tangency portfolio weights and Sharpe ratio
+print("Tangency portfolio weights:", omega_tgc, '\n')
+print("Maximum attainable Sharpe ratio:", sharpe_ratio_tgc, '\n')
