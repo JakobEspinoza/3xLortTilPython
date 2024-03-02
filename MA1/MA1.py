@@ -171,5 +171,11 @@ plt.grid(True)
 plt.show()
 
 # Output for tangency portfolio weights and Sharpe ratio
-print("Tangency portfolio weights:", omega_tgc, '\n')
-print("Maximum attainable Sharpe ratio:", sharpe_ratio_tgc, '\n')
+print("Tangency portfolio weights:", [round(o,2) for o in omega_tgc], '\n')
+print("Maximum attainable Sharpe ratio:", round(sharpe_ratio_tgc,2), '\n')
+
+
+
+
+
+#%%
