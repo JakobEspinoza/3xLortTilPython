@@ -1,4 +1,5 @@
-#%%
+#%% GET DATA
+
 
 # imports
 import numpy as np
@@ -19,7 +20,32 @@ adj_close_hist = rawdata['Adj Close'].copy()
 adj_close_hist.columns = djones_ticks
 
 
-#%%
+
+#%% Problem 1
+
 # remove non-continuos assets
 prices = adj_close_hist.dropna(axis=1, how='any')
-print(f'Number of assets in cleaned dataset: {len(prices.columns)}')
+print(f'Number of assets in cleaned dataset: {len(prices.columns)}\n')
+
+# calc monthly returns for each asset
+monthly_returns = prices.resample('ME').last().pct_change()
+monthly_returns = monthly_returns.dropna()
+
+
+#%% Problem 2
+
+# Compute the sample means
+mu = monthly_returns.mean()
+
+# Compute the variance-covariance matrix
+Sigma = monthly_returns.cov()
+
+# Calculate Sharpe ratio for each asset
+sharpe_ratios = mu / monthly_returns.std()
+
+# Identify the asset with the highest Sharpe ratio
+max_sharpe_tick = sharpe_ratios.idxmax()
+max_sharpe = sharpe_ratios.max()
+
+print(f"The asset with the highest Sharpe ratio is {max_sharpe_tick} with a Sharpe ratio of {round(max_sharpe,2)}\n")
+
