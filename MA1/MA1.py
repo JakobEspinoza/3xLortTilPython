@@ -100,18 +100,22 @@ def compute_efficient_frontier(Sigma_est, mu_est):
         portfolios.append(omega_c)
     
     # Create a DataFrame to return the results
-    tickers = list(Sigma_est.columns)
-    df = pd.DataFrame(portfolios, columns=tickers)
+    df = pd.DataFrame(portfolios, columns=[f'Asset {i+1}' for i in range(N)])
     df['c'] = c_values
     
-    return df[['c'] + tickers]
+    return df[['c'] + [f'Asset {i+1}' for i in range(N)]]
 
 
 
 #%% Problem 4
 
+
+
 # get efficient_frontier df
 efficient_frontier_df = compute_efficient_frontier(Sigma, mu)
+
+# define assets in the df
+assets = [f'Asset {i+1}' for i in range(len(mu))]
 
 # Initialize returns and volatilit lists
 expected_returns = []
@@ -119,7 +123,7 @@ volatilities = []
 
 # Compute expected return and volatility for each value of c
 for index, row in efficient_frontier_df.iterrows():
-    omega_c = row[djones_ticks].values  # Portfolio weights
+    omega_c = row[assets].values  # Portfolio weights
     expected_return = np.dot(omega_c, mu)  # Expected return
     volatility = np.sqrt(np.dot(omega_c.T, np.dot(Sigma, omega_c)))  # Volatility
     
@@ -176,6 +180,120 @@ print("Maximum attainable Sharpe ratio:", round(sharpe_ratio_tgc,2), '\n')
 
 
 
+#%% Problem 6
 
 
-#%%
+def simulate_returns(periods=200,
+    expected_returns=mu,
+    covariance_matrix=Sigma):
+    """
+    periods (int): Number of periods
+    expected_returns (array-like): Expected returns for each asset
+    covariance_matrix (array-like): Covariance matrix of returns
+    """
+    3
+    returns = np.random.multivariate_normal(expected_returns,
+    covariance_matrix,
+    size=periods)
+    return returns
+
+'''
+Simulation Process:
+The function uses the np.random.multivariate_normal method from NumPy to generate random samples from a multivariate normal distribution. This method requires the mean (expected returns), the covariance matrix, and the number of samples (size) to generate.
+expected_returns serves as the mean of the distribution, indicating the average return expected for each asset.
+covariance_matrix provides the covariances between the asset returns, which are essential for capturing the relationships between different assets' performances.
+periods determines how many sets of returns will be generated, with each set containing a return value for each asset.
+
+Output:
+The function returns a NumPy array with dimensions 
+periods
+periods x N, where each row represents a set of simulated returns for all assets in one period, and 
+N is the number of assets.
+
+In summary, the simulate_returns function is a tool for generating synthetic asset return data based on specified expected returns and covariance among the assets. 
+This simulated data can be used to study the properties of financial models, test investment strategies, 
+or understand the impact of estimation uncertainty on portfolio optimization, such as the construction of efficient frontiers.
+'''
+
+# Step 1: Generate simulated returns
+simulated_returns = simulate_returns(periods=200, expected_returns=mu, covariance_matrix=Sigma)
+
+# Step 2: Compute sample mean and variance-covariance matrix
+sample_mu = np.mean(simulated_returns, axis=0)
+sample_Sigma = np.cov(simulated_returns, rowvar=False)
+
+# Compute the efficient frontier for the simulated data (using the sample estimates)
+sample_efficient_frontier_df = compute_efficient_frontier(sample_Sigma, sample_mu)
+
+# Compute expected returns and volatilities for the simulated efficient frontier
+sample_expected_returns = []
+sample_volatilities = []
+
+for index, row in sample_efficient_frontier_df.iterrows():
+    omega_c = row[assets].values  # Portfolio weights
+    sample_expected_return = np.dot(omega_c, sample_mu)  # Expected return
+    sample_volatility = np.sqrt(np.dot(omega_c.T, np.dot(sample_Sigma, omega_c)))  # Volatility
+    sample_expected_returns.append(sample_expected_return)
+    sample_volatilities.append(sample_volatility)
+
+# Plotting both the true and simulated efficient frontiers
+plt.figure(figsize=(12, 8))
+
+# True Efficient Frontier
+plt.scatter(volatilities, expected_returns, c='blue', marker='o', label='True Efficient Frontier')
+
+# Simulated Efficient Frontier
+plt.scatter(sample_volatilities, sample_expected_returns, c='green', marker='x', label='Simulated Efficient Frontier')
+
+# Tangency Portfolio on the True Frontier
+plt.scatter(volatility_tgc, expected_return_tgc, c='red', marker='*', s=150, label='Tangency Portfolio')
+
+plt.title('True vs. Simulated Efficient Frontiers')
+plt.xlabel('Volatility')
+plt.ylabel('Expected Return')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+
+
+#%% Problem 7
+
+plt.figure(figsize=(14, 10))
+
+# Plot the true efficient frontier
+plt.scatter(volatilities, expected_returns, c='blue', marker='o', label='True Efficient Frontier')
+
+# Repeat the simulation step 100 times
+for simulation in range(100):
+    # Generate simulated returns
+    simulated_returns = simulate_returns(periods=200, expected_returns=mu, covariance_matrix=Sigma)
+    
+    # Compute sample mean and variance-covariance matrix
+    sample_mu = np.mean(simulated_returns, axis=0)
+    sample_Sigma = np.cov(simulated_returns, rowvar=False)
+    
+    # Compute the efficient frontier for the simulated data
+    sample_efficient_frontier_df = compute_efficient_frontier(sample_Sigma, sample_mu)
+    
+    # Compute expected returns and volatilities for the simulated efficient frontier
+    sample_expected_returns = []
+    sample_volatilities = []
+
+    for index, row in sample_efficient_frontier_df.iterrows():
+        omega_c = row[assets].values  # Portfolio weights
+        sample_expected_return = np.dot(omega_c, sample_mu)  # Expected return
+        sample_volatility = np.sqrt(np.dot(omega_c.T, np.dot(sample_Sigma, omega_c)))  # Volatility
+        sample_expected_returns.append(sample_expected_return)
+        sample_volatilities.append(sample_volatility)
+    
+    # Plot each simulated efficient frontier
+    plt.scatter(sample_volatilities, sample_expected_returns, c='grey', alpha=0.1)
+
+# Final plot adjustments
+plt.title('True vs. Simulated Efficient Frontiers (100 Simulations)')
+plt.xlabel('Volatility')
+plt.ylabel('Expected Return')
+plt.legend()
+plt.grid(True)
+plt.show()
