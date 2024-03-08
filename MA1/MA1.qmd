@@ -1,7 +1,7 @@
 ---
 title: "Mandatory Assignment 1"
-author: "Jakob Espinoza, Jan Zeeberg og Anders Bruun"
-date: "2024-02-03"
+author: "vsc879, zqd848 og jzr636"
+date: "2024-03-08"
 execute: 
   echo: false
   warning: false
@@ -15,10 +15,10 @@ format:
       - bottom=20mm
       - right=20mm
     cite-method: natbib
-    fontsize: 12pt
+    fontsize: 11pt
 ---
 
-# Imports
+Imports
 ```{python}
 #| echo: true
 # imports
@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 
 ```
 
-# Problem 1
+# 
 
 Follow the exercise sets to download daily adjusted prices for all constituents of the Dow Jones
 30 index for the period from January 1st, 2000 until December 31st, 2023 from Yahoo!Finance.
@@ -65,7 +65,7 @@ monthly_returns = monthly_returns.dropna()
 
 ```
 
-# Problem 2
+#
 
 Compute the sample mean 𝜇 and the variance-covariance matrix Σ of the monthly returns.1
 Which of the 𝑁 individual assets delivered the highest Sharpe ratio (assume the risk-free
@@ -90,69 +90,59 @@ print(f"The asset with the highest Sharpe ratio is {max_sharpe_tick} with a Shar
 
 ```
 
-# Problem 3
+#
 
 Define a function compute_efficient_frontier which takes at least two inputs: a
 𝑁 × 𝑁 variance-covariance matrix Sigma_est and a vector mu_est.
 
 ```{python}
 #| echo: true
-'Func for computing efficient frontier'
 def compute_efficient_frontier(Sigma_est, mu_est):
-
-    # Number of assets
-    N = len(mu_est)  
+    N = len(mu_est)
+    # Calculating the weights by performing matrix calculations
+    min_variance = lambda weights: weights.T @ Sigma_est @ weights 
+    # We wish to minimize, hence the negative
+    eff_portfolio = lambda weights: -mu_est @ weights 
     
-    # Objective function for minimum variance portfolio
-    def min_variance(weights):
-        return weights.T @ Sigma_est @ weights
-    
-    # Constraints
-    weights_sum_to_one = {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}
-    
-    # Initial guess for weights
+    constraints = [{'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}]
+    # Weights cannot exceed 100%, therefor we set the boundaries
+    bounds = tuple((0, 1) for _ in range(N)) 
     initial_guess = np.ones(N) / N
     
-    # Bounds for weights
-    bounds = tuple((0, 1) for asset in range(N))
-    
-    # Optimization for minimum variance portfolio
-    min_var_result = sco.minimize(min_variance, initial_guess, method='SLSQP', bounds=bounds, constraints=[weights_sum_to_one])
-    omega_mvp = min_var_result.x
-    
-    # Compute expected return of MVP
-    mvp_return = mu_est @ omega_mvp
-    
-    # Objective function for efficient portfolio
-    def eff_portfolio(weights):
-        return -mu_est @ weights  # We want to maximize return, hence the negative
-    
-    # Additional constraint for efficient portfolio to have double the MVP's return
-    return_constraint = {'type': 'eq', 'fun': lambda weights: mu_est @ weights - 2 * mvp_return}
-    
-    # Optimization for efficient portfolio
-    eff_var_result = sco.minimize(eff_portfolio, initial_guess, method='SLSQP', bounds=bounds, constraints=[weights_sum_to_one, return_constraint])
-    omega_eff = eff_var_result.x
-    
-    # Compute range of portfolio weights using two-fund theorem
-    c_values = np.arange(-0.1, 1.21, 0.1)  # Range of c values from -0.1 to 1.2
-    portfolios = []
+    min_var_result = sco.minimize(
+        min_variance, 
+        initial_guess, 
+        method='SLSQP', 
+        bounds=bounds, 
+        constraints=constraints) # finding the portfolio with minimum variance using scipy
+    omega_mvp = min_var_result.x # Extracting the weights for the minimum variance portfolio
+    mvp_return = mu_est @ omega_mvp # Calculating the return
 
-    for c in c_values:
-        omega_c = c * omega_mvp + (1 - c) * omega_eff
-        portfolios.append(omega_c)
+    # Defining the equality constraint to reach target return (2 * MVP return)
+    return_constraint = {'type': 'eq', 'fun': lambda weights: mu_est @ weights - 2 * mvp_return} 
+
+    # finding the portfolio with highest sharpe ration using scipy
+    eff_var_result = sco.minimize(
+        eff_portfolio, 
+        initial_guess, 
+        method='SLSQP', 
+        bounds=bounds, 
+        constraints=constraints + [return_constraint]) 
+    # Extracting the weights for the minimum variance portfolio
+    omega_eff = eff_var_result.x 
     
-    # Create a DataFrame to return the results
+    c_values = np.arange(-0.1, 1.21, 0.1) # Setting the given interval for values of c. 
+    portfolios = [(c * omega_mvp + (1 - c) * omega_eff) for c in c_values]
+    
     df = pd.DataFrame(portfolios, columns=[f'Asset {i+1}' for i in range(N)])
     df['c'] = c_values
     
     return df[['c'] + [f'Asset {i+1}' for i in range(N)]]
 
 
-
 ```
 
-# Problem 4
+#
 
 Use the output of the function compute_efficient_frontier(Sigma_est, mu_est, ...)
 to visualize the theoretically optimal eﬀicient frontier in a diagram with volatility on the
@@ -160,30 +150,36 @@ x-axis and expected returns on the y-axis based on the true parameters Σ and �
 
 ```{python}
 #| echo: true
-# get efficient_frontier df
+
+# Using the function to calculate the effeicient frontier
 efficient_frontier_df = compute_efficient_frontier(Sigma, mu)
 
-# define assets in the df
 assets = [f'Asset {i+1}' for i in range(len(mu))]
-
-# Initialize returns and volatilit lists
 expected_returns = []
 volatilities = []
 
-# Compute expected return and volatility for each value of c
-for index, row in efficient_frontier_df.iterrows():
-    omega_c = row[assets].values  # Portfolio weights
-    expected_return = np.dot(omega_c, mu)  # Expected return
-    volatility = np.sqrt(np.dot(omega_c.T, np.dot(Sigma, omega_c)))  # Volatility
-    
-    expected_returns.append(expected_return)
-    volatilities.append(volatility)
+#Iterate over rows in the efficient_frontier_df DataFrame 
+for _, row in efficient_frontier_df.iterrows():
+    # Finding portfolio weights for current row
+    omega_c = row[assets].values 
+    # Expected return for the portfolio
+    expected_returns.append(np.dot(omega_c, mu)) 
+    # Volatility for the portfolio
+    volatilities.append(np.sqrt(np.dot(
+        omega_c.T, 
+        np.dot(Sigma, omega_c)
+        )
+        )
+        ) 
 
-# Plotting the efficient frontier with c's as labels for eahc datapoint
+# Plotting the figure of the efficient frontier
 plt.figure(figsize=(12, 8))
-for i, txt in enumerate(efficient_frontier_df['c']):
-    plt.scatter(volatilities[i], expected_returns[i], c='blue', marker='o')
-    plt.text(volatilities[i], expected_returns[i], f'{txt:.1f}', fontsize=9)
+plt.scatter(
+    volatilities, 
+    expected_returns, 
+    c='blue', 
+    marker='o'
+    )
 
 plt.title('Efficient Frontier')
 plt.xlabel('Volatility')
@@ -193,8 +189,414 @@ plt.show()
 
 ```
 
+# 
+
+What are the efficient tangency portfolio weights 𝜔tgc under the assumption that the risk-
+free rate is zero based on the true parameters 𝜇 and Σ? Do the tangency portfolio weights
+seem like a well-balanced portfolio? What are the potential issues when implementing this
+portfolio in reality? What is the maximum attainable Sharpe ratio assuming the risk-free
+rate is zero? Should the Sharpe ratio of 𝜔tgc be higher or lower than the Sharpe ratio of the
+individual assets?
+
+```{python}
+#| echo: true
+
+# risk free asset is assumed to be zero
+rf = 0
+
+# To calculate tangency portfolio weights, 
+# we first have to find the inverse of the variance covariance matrix, 
+# and define "iota" as a column of ones
+Sigma_inv = np.linalg.inv(Sigma)
+iota = np.ones(len(mu))
+
+# Computing the tangency portfolio weights
+omega_tgc = (Sigma_inv @ (mu -rf*iota)) / np.dot(iota, np.dot(Sigma_inv, mu))
+sum_omega_tgc = omega_tgc.sum()
+print(f" The weights of the tangency portfolio sum to: {round(sum_omega_tgc,2)}\n")
+
+# using the eqights we can calculate the expected return 
+# and volatility of the tangency portfolio
+expected_return_tgc = np.dot(mu, omega_tgc)
+volatility_tgc = np.sqrt(np.dot(omega_tgc.T, np.dot(Sigma, omega_tgc)))
+
+# Compute the Sharpe ratio of the tangency portfolio
+sharpe_ratio_tgc = expected_return_tgc / volatility_tgc
+
+# Plotting the efficient frontier with c's as labels for each datapoint
+plt.figure(figsize=(12, 8))
+for i, txt in enumerate(efficient_frontier_df['c']):
+    plt.scatter(volatilities[i], expected_returns[i], c='blue', marker='o')
+    plt.text(volatilities[i], expected_returns[i], f'{txt:.1f}', fontsize=9)
+
+# Plotting the tangency portfolio on the efficient frontier
+plt.scatter(
+    volatility_tgc, 
+    expected_return_tgc, 
+    c='red', marker='*', 
+    s=150, 
+    label='Tangency Portfolio'
+    )
+plt.legend()
+
+```
+
+
+# 
+You are given the function:
+
+```{python}
+#| echo: true
+
+def simulate_returns(periods=200,
+    expected_returns=mu,
+    covariance_matrix=Sigma):
+    """
+    periods (int): Number of periods
+    expected_returns (array-like): Expected returns for each asset
+    covariance_matrix (array-like): Covariance matrix of returns
+    """
+    3
+    returns = np.random.multivariate_normal(expected_returns,
+    covariance_matrix,
+    size=periods)
+    return returns
+
+```
+
+Explain briefly what the function is doing.
+
+Simulation Process:
+The function uses the np.random.multivariate_normal method from NumPy to generate random samples from a multivariate normal distribution. This method requires the mean (expected returns), the covariance matrix, and the number of samples (size) to generate.
+expected_returns serves as the mean of the distribution, indicating the average return expected for each asset.
+covariance_matrix provides the covariances between the asset returns, which are essential for capturing the relationships between different assets' performances.
+periods determines how many sets of returns will be generated, with each set containing a return value for each asset.
+
+Output:
+The function returns a NumPy array with dimensions 
+periods
+periods x N, where each row represents a set of simulated returns for all assets in one period, and 
+N is the number of assets.
+
+In summary, the simulate_returns function is a tool for generating synthetic asset return data based on specified expected returns and covariance among the assets. 
+This simulated data can be used to study the properties of financial models, test investment strategies, 
+or understand the impact of estimation uncertainty on portfolio optimization, such as the construction of efficient frontiers.
+
+#
+
+Use simulate_returns(periods = 200) to generate one hypothetical sample of size
+periods = 200. For this simulated sample, compute the sample mean, the sample variance-
+covariance matrix, and plug-in estimates of the mean–variance frontier again. Evaluate
+how close these estimates come to the “true” frontier based on exercise 3 by plotting them
+meaningfully in the figure from above. To be precise: We assume that the investor has
+the sample estimates available while the actual return distribution is determined by Σ and
+𝜇 (which are unkown to her). Why do the simulated efficient frontiers deviate from the
+theoretically optimal one?
+
+
+```{python}
+#| echo: true
+
+
+# Step 1: Generate simulated returns
+simulated_returns = simulate_returns(
+    periods=200, 
+    expected_returns=mu, 
+    covariance_matrix=Sigma
+    )
+
+# Step 2: Compute sample mean and variance-covariance matrix
+sample_mu = np.mean(simulated_returns, axis=0)
+sample_Sigma = np.cov(simulated_returns, rowvar=False)
+
+# Compute the efficient frontier for the 
+# simulated data (using the sample estimates)
+sample_efficient_frontier_df = compute_efficient_frontier(
+    sample_Sigma, 
+    sample_mu
+    )
+
+# Compute expected returns and volatilities for the simulated efficient frontier
+sample_expected_returns = []
+sample_volatilities = []
+
+for index, row in sample_efficient_frontier_df.iterrows():
+    omega_c = row[assets].values  # Portfolio weights
+    sample_expected_return = np.dot(omega_c, sample_mu)  # Expected return
+    sample_volatility = np.sqrt(np.dot(
+        omega_c.T, 
+        np.dot(sample_Sigma, omega_c)
+        )
+        )  # Volatility
+    sample_expected_returns.append(sample_expected_return)
+    sample_volatilities.append(sample_volatility)
+
+# Plotting both the true and simulated efficient frontiers
+plt.figure(figsize=(12, 8))
+
+# True Efficient Frontier
+plt.scatter(
+    volatilities, 
+    expected_returns, 
+    c='blue', 
+    marker='o', 
+    label='True Efficient Frontier'
+    )
+
+# Simulated Efficient Frontier
+plt.scatter(
+    sample_volatilities, 
+    sample_expected_returns, 
+    c='green', 
+    marker='x', 
+    label='Simulated Efficient Frontier'
+    )
+
+# Tangency Portfolio on the True Frontier
+plt.scatter(
+    volatility_tgc, 
+    expected_return_tgc, 
+    c='red', 
+    marker='*', 
+    s=150, 
+    label='Tangency Portfolio'
+    )
+
+plt.title('True vs. Simulated Efficient Frontiers')
+plt.xlabel('Volatility')
+plt.ylabel('Expected Return')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+```
+
+#
+Repeat the simulation step 100 times and visualize all simulated eﬀicient frontiers within one
+figure together with the theoretically optimal one. What can you conclude from the figure?
+How does the result depend on the sample size periods?
+
+```{python}
+#| echo: true
+
+plt.figure(figsize=(14, 10))
+
+# Plot the true efficient frontier
+plt.scatter(
+    volatilities, 
+    expected_returns, 
+    c='blue', 
+    marker='o', 
+    label='True Efficient Frontier'
+    )
+
+# Running the simulation step 100 times
+for simulation in range(100):
+    # Generate simulated returns
+    simulated_returns = simulate_returns(
+        periods=200, 
+        expected_returns=mu, 
+        covariance_matrix=Sigma
+        )
+    
+    # Compute sample mean and variance-covariance matrix
+    sample_mu = np.mean(simulated_returns, axis=0)
+    sample_Sigma = np.cov(simulated_returns, rowvar=False)
+    
+    # Compute the efficient frontier for the simulated data
+    sample_efficient_frontier_df = compute_efficient_frontier(
+        sample_Sigma, 
+        sample_mu
+        )
+    
+    # Compute expected returns and volatilities for the simulated efficient frontier
+    sample_expected_returns = []
+    sample_volatilities = []
+
+    for index, row in sample_efficient_frontier_df.iterrows():
+        omega_c = row[assets].values  # Portfolio weights
+        sample_expected_return = np.dot(omega_c, sample_mu)  # Expected return
+        sample_volatility = np.sqrt(np.dot(
+            omega_c.T, 
+            np.dot(sample_Sigma, omega_c)
+            )
+            )  # Volatility
+        sample_expected_returns.append(sample_expected_return)
+        sample_volatilities.append(sample_volatility)
+    
+    # Plot each simulated efficient frontier
+    plt.scatter(sample_volatilities, sample_expected_returns, c='grey', alpha=0.1)
+
+# Final plot adjustments
+plt.title('True vs. Simulated Efficient Frontiers (100 Simulations)')
+plt.xlabel('Volatility')
+plt.ylabel('Expected Return')
+plt.legend()
+plt.grid(True)
+plt.show()
+```
+
+#
+Compute for each of the simulated return samples the eﬀicient tangent portfoliô 𝜔𝑡𝑔𝑦(̂Σ,̂ 𝜇)
+under the assumption that the risk-free rate is zero. Then, for each of the simulated sam-
+ples, compute the annualized Sharpe-ratio of the eﬀicient portfolio evaluated with the true
+parameters (𝑆𝑅 = √12̂𝜔′
+𝑡𝑔𝑦𝜇/√̂𝜔′
+𝑡𝑔𝑦Σ̂𝜔𝑡𝑔𝑦).
+
+Visualize these Sharpe ratios in a histogram together with the Sharpe ratio of the eﬀicient
+tangency portfolio based on the true parameters 𝜇 and Σ
+
+```{python}
+#| echo: true
+
+sharpe_ratios_simulated = []
+
+# We run the simulation again, but in this for loop 
+# we calculate the efficient tangent portfolio and the annualized sharpe ratio
+for simulation in range(100):
+    # Generate simulated returns
+    simulated_returns = simulate_returns(
+        periods=200, 
+        expected_returns=mu, 
+        covariance_matrix=Sigma
+        )
+    
+    # Compute sample mean and variance-covariance matrix
+    sample_mu = np.mean(simulated_returns, axis=0)
+    sample_Sigma = np.cov(simulated_returns, rowvar=False)
+    
+    # Calculate tangency portfolio weights
+    Sigma_inv = np.linalg.inv(sample_Sigma)
+    iota = np.ones(len(sample_mu))
+    numerator = Sigma_inv @ (sample_mu - rf * iota)
+    denominator = iota.T @ Sigma_inv @ (sample_mu - rf * iota)
+    omega_tgc = numerator / denominator
+    
+    # Calculate expected return and volatility of 
+    # the efficient portfolio using true parameters
+    expected_return_efficient_portfolio = mu @ omega_tgc
+    volatility_efficient_portfolio = np.sqrt(omega_tgc.T @ Sigma @ omega_tgc)
+    
+    # Calculate annualized Sharpe ratio
+    sharpe_ratio = np.sqrt(12)\
+         * expected_return_efficient_portfolio / volatility_efficient_portfolio
+    
+    # Append Sharpe ratio to the list
+    sharpe_ratios_simulated.append(sharpe_ratio)
+
+# Plot the distribution of simulated Sharpe ratios
+plt.figure(figsize=(10, 6))
+plt.hist(
+    sharpe_ratios_simulated, 
+    bins=20, 
+    color='skyblue', 
+    edgecolor='black', 
+    alpha=0.7, 
+    label='Simulated Sharpe Ratios'
+    )
+# We have the sharpe ratio of the tangent portfolio from ealier, 
+# why we can plot it in the figure as a dotted line. 
+plt.axvline(
+    x=sharpe_ratio_tgc, 
+    color='red', 
+    linestyle='--', 
+    linewidth=2, 
+    label='Tangency Portfolio Sharpe Ratio'
+    )
+
+plt.xlabel('Simulated Annualized Sharpe Ratio')
+plt.ylabel('Frequency')
+plt.title('Distribution of Simulated Annualized Sharpe Ratios')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+```
+
+#
+How do the results change for larger sample sizes periods? Discuss what you can conclude
+from the figure. Name at least two alternative allocation strategies that could help reduce the
+plug-in estimates’ shortfall. Show if your proposed alternatives improve upon the benchmark
+we simulated above. Discuss the results
+
+```{python}
+#| echo: true
+sharpe_ratios_simulated_2 = []
+
+# We run the simulation again, but in this for loop we calculate 
+# the efficient tangent portfolio and the annualized sharpe ratio 
+# with a higher number of periods. this is run with 1000, 
+# but can be done with even higher numbers
+for simulation in range(100):
+    # Generate simulated returns
+    simulated_returns = simulate_returns(
+        periods=1000, 
+        expected_returns=mu, 
+        covariance_matrix=Sigma
+        )
+    
+    # Compute sample mean and variance-covariance matrix
+    sample_mu = np.mean(simulated_returns, axis=0)
+    sample_Sigma = np.cov(simulated_returns, rowvar=False)
+    
+    # Calculate tangency portfolio weights
+    Sigma_inv = np.linalg.inv(sample_Sigma)
+    iota = np.ones(len(sample_mu))
+    numerator = Sigma_inv @ (sample_mu - rf * iota)
+    denominator = iota.T @ Sigma_inv @ (sample_mu - rf * iota)
+    omega_tgc = numerator / denominator
+    
+    # Calculate expected return and volatility of 
+    # the efficient portfolio using true parameters
+    expected_return_efficient_portfolio = mu @ omega_tgc
+    volatility_efficient_portfolio = np.sqrt(omega_tgc.T @ Sigma @ omega_tgc)
+    
+    # Calculate annualized Sharpe ratio
+    sharpe_ratio = np.sqrt(12) * \
+        expected_return_efficient_portfolio / volatility_efficient_portfolio
+    
+    # Append Sharpe ratio to the list
+    sharpe_ratios_simulated_2.append(sharpe_ratio)
+
+# Plot the distribution of simulated Sharpe ratios
+plt.figure(figsize=(10, 6))
+plt.hist(
+    sharpe_ratios_simulated_2, 
+    bins=20, 
+    color='skyblue', 
+    edgecolor='black', 
+    alpha=0.7, 
+    label='Simulated Sharpe Ratios'
+    )
+# We have the sharpe ratio of the tangent portfolio from ealier, 
+# why we can plot it in the figure as a dotted line. 
+plt.axvline(
+    x=sharpe_ratio_tgc, 
+    color='red', 
+    linestyle='--', 
+    linewidth=2, 
+    label='Tangency Portfolio Sharpe Ratio'
+    )
+
+plt.xlabel('Simulated Annualized Sharpe Ratio')
+plt.ylabel('Frequency')
+plt.title('Distribution of Simulated Annualized Sharpe Ratios')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+```
+
+For Exercise 8 and 9, as the sample size (periods) increases, the results tend to stabilize and converge towards more accurate estimates of the true Sharpe ratio distribution. Larger sample sizes provide more data points for estimating parameters such as expected returns and covariance matrices, which improves accuracy in the Sharpe ratio. 
+
+When adjusting for the sample size “periods”, we observe that as the sample size increases, the distribution of simulated Sharpe ratios tends to narrow around the true value, indicating reduced variability and more precise estimation of portfolio performance. This suggests that larger sample sizes lead to more reliable estimates and better reflect the underlying characteristics of the asset returns.
+
+Considering Bayesian estimation and robust optimization as potential strategies to improve plug-in estimates, we could possibly return estimation results. We haven’t succeeded in implementing this in our code. 
+
+
 ```{python}
 #| echo: true
 #| eval: false
-knitr::purl("MA1.qmd")
+knitr::purl("MA_template.qmd")
 ```
